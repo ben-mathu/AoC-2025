@@ -1,11 +1,13 @@
-with open('input/print.txt', 'r') as f:
+from os import system
+from time import sleep
+
+with open('input/print_example.txt', 'r') as f:
     lines = f.readlines()
     # i,j: i-1,j-1;i-1,j;i-1,j+1;i,j-1;i,j;i,j+1;i+1,j-1;i+1,j;i+1,j+1
     l = []
     for i in range(len(lines)):
         l.append([c for c in lines[i].strip()])
 
-    print(l)
     remove_count = 0
     while True:
         count = 0
@@ -52,4 +54,9 @@ with open('input/print.txt', 'r') as f:
         for item in remove:
             l[item[0]][item[1]] = 'x'
             remove_count +=1
+
+        system('clear')
+        for r in l:
+            print(''.join([c for c in r]), end='')
+        sleep(200)
     print(remove_count)
