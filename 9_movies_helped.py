@@ -1,3 +1,7 @@
+"""
+Find tutorial from here: https://youtu.be/-w5mFTtRLE8?si=z3XdQz9-ZN0_2Ve5
+Used 0xdf's solution to find my answer 
+"""
 from input_parser import get_lines
 from math import pow
 from operator import itemgetter
