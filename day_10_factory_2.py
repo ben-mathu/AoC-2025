@@ -1,43 +1,54 @@
 """
 This is AI generated - editted slightly to remove unnecessary code
+Editted myself to solve part 2 after understanding part 1
 """
 import re
 from itertools import product
+from input_parser import get_lines
+from scipy.optimize import linprog
+import numpy as np
 
 def solve_factory_puzzle(input_data):
     """
     Parses the puzzle input and calculates the minimum total button presses.
     """
     machines = parse_input(input_data)
-    for m in machines: print(m)
     
     total_min_presses = 0
+    total_min_presses_counter = 0
 
     print(f"Processing {len(machines)} machines...\n")
 
-    for i, (target_vector, button_matrix) in enumerate(machines):
+    for i, (target_vector, target_counter_vector, button_matrix) in enumerate(machines):
         # Solve Ax = B over GF(2)
         min_presses = solve_machine(target_vector, button_matrix)
         
-        if min_presses is None:
-            print(f"Machine {i+1}: No solution found (Impossible configuration).")
-        else:
-            print(f"Machine {i+1}: Minimum presses = {min_presses}")
-            total_min_presses += min_presses
+        print(f"Machine {i+1} Minimum Presses:")
+        print(f'Part 1 = {min_presses}')
+        total_min_presses += min_presses
 
-    return total_min_presses
+        min_presses_counter = solve_machine_part2_2(target_counter_vector, button_matrix)
+        
+        print(f'Part 2 = {min_presses_counter}')
+        total_min_presses_counter += min_presses_counter
+
+    return total_min_presses, total_min_presses_counter
 
 def parse_input(data):
     """
     Parses the raw input string into a list of (target_vector, button_matrix) tuples.
     """
     machines = []
-    lines = data.split('\n')
+    # lines = data.split('\n')
+    lines = data
     
     for line in lines:
         # 1. Parse Indicator Diagram [.##.]
         diagram_match = re.search(r'\[([.#]+)\]', line)
         if not diagram_match: continue
+
+        counter_match = re.search(r'\{([\d,]+)\}', line)
+        target_counter_vector = list(map(int, counter_match.group(1).split(',')))
 
         diagram_str = diagram_match.group(1)
         num_lights = len(diagram_str)
@@ -54,6 +65,7 @@ def parse_input(data):
         # A is size N x M (rows=lights, cols=buttons)
         # We'll build it as a list of columns first (one column per button)
         matrix_columns = []
+        counter_matrix = []
         
         for button_str in button_matches:
             affected_indices = [int(x) for x in button_str.split(',')]
@@ -64,6 +76,7 @@ def parse_input(data):
                 if 0 <= idx < num_lights:
                     col[idx] = 1
             matrix_columns.append(col)
+            counter_matrix.append(col)
             
         # Transpose to get standard row-major matrix (list of rows)
         # A[i][j] is 1 if button j affects light i
@@ -71,7 +84,7 @@ def parse_input(data):
         button_matrix = [[matrix_columns[j][i] for j in range(num_buttons)] 
                          for i in range(num_lights)]
                          
-        machines.append((target_vector, button_matrix))
+        machines.append((target_vector, target_counter_vector, button_matrix))
         
     return machines
 
@@ -172,14 +185,93 @@ def solve_machine(B, A):
             
     return min_weight
 
-# --- Test with the Example Input provided ---
-example_input = """
-[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
-[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
-[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}
-"""
+def solve_machine_part2(B, A):
+    num_rows = len(A)
+    num_cols = len(A[0])
+    
+    aug_matrix = [row[:] + [B[i]] for i, row, in enumerate(A)]
+    
+    pivot_row = 0
+    pivot_cols = []
+    
+    for col in range(num_cols):
+        candidate = -1
+        for r in range(pivot_row, num_rows):
+            if aug_matrix[r][col] >= 1:
+                candidate = r
+                break
+        
+        if candidate == -1:
+            continue
+        
+        aug_matrix[pivot_row], aug_matrix[candidate] = aug_matrix[candidate], aug_matrix[pivot_row]
+        
+        # Eliminate other rows
+        for r in range(num_rows):
+            if r == pivot_row and aug_matrix[r][col] > 1:
+                v = aug_matrix[r][col]
+                for c in range(num_cols+1):
+                    aug_matrix[r][c] = (1/v) * aug_matrix[r][c]
+
+            if r != pivot_row and aug_matrix[r][col] >= 1:
+                v = aug_matrix[r][col]
+
+                # substitute columns above the pivot column with 0
+                for c in range(num_cols + 1):
+                    aug_matrix[r][c] += (-v if v > 0 else v) * aug_matrix[pivot_row][c]
+
+        pivot_cols.append(col)
+        pivot_row += 1
+        
+    # --- Check for Consistency ---
+    # If a row is all zeros except the last element (the augmented part), 0 = 1 -> Impossible
+    # for r in range(pivot_row, num_rows):
+    #     if aug_matrix[r][-1] == 1:
+    #         return None # No solution
+
+    # --- Find Particular Solution ---
+    # Start with all zeros
+    x_particular = [0] * num_cols
+    
+    # Back-substitution (trivial in RREF: just map pivots to target values)
+    # Because we zeroed out rows above and below pivots, the pivot row explicitly tells us the value
+    for i, p_col in enumerate(pivot_cols):
+        x_particular[p_col] = aug_matrix[i][-1]
+
+    min_presses = 0
+    return min_presses
+
+def solve_machine_part2_2(B, A):
+    # button_presses = list(zip(*A))
+    button_presses = np.array(A, dtype=int)
+    B = np.array(B, dtype=int)
+
+    A2 = button_presses
+    A1 = B
+
+    m = len(A[0]) # number of buttons
+    c = np.ones(m)
+
+    # Bounds: x_i >= 0
+    bounds = [(0, None)] * m
+
+    # Integrality: all variables integer
+    integrality = np.ones(m, dtype=int)
+
+    res = linprog(
+        c,
+        A_eq=A2,
+        b_eq=A1,
+        bounds=bounds,
+        integrality=integrality,
+        method="highs",
+    )       
+    return int(round(res.fun))
 
 if __name__ == "__main__":
-    result = solve_factory_puzzle(example_input)
+    result, result2 = solve_factory_puzzle(get_lines(10))
     print("-" * 30)
-    print(f"Total Fewest Presses: {result}")
+    print(f"Part 1: {result}")
+
+    print("-" * 30)
+    print(f"Part 2: {result2}")
