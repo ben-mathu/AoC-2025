@@ -101,5 +101,6 @@ count = dfs_2('svr', False, False, devices_e)
 print('Possible path count', count)
 
 # Part 2
+memo = {}
 total_count = dfs_2('svr', False, False, devices)
-print('Possible path count', count)
+print('Possible path count', total_count)
