@@ -54,18 +54,16 @@ class Node:
     
     return total_count
 
-def dfs(name, devices, visited=None):
-  
+def dfs(name, devices):
   if name == 'out':
     return Node(name)
   
   new_node = Node(name)
   for output in devices[name]:
-    child = dfs(output, devices, visited)
-    if child:
-      if not new_node.children:
-        new_node.children = []
-      new_node.children.append(child)
+    child = dfs(output, devices)
+    if not new_node.children:
+      new_node.children = []
+    new_node.children.append(child)
 
   return new_node
 
@@ -79,11 +77,29 @@ devices = map_devices('11', '')
 root = dfs('you', devices)
 print('Possible path count', root.count_paths())
 
+
+memo = {}
+def dfs_2(name, found1, found2, inputs):
+  state = (name, found1, found2)
+  
+  if state in memo:
+    return memo[state]
+  
+  if name == 'out':
+    return 1 if found1 and found2 else 0
+  
+  total = 0
+  for output in inputs[name]:
+    total += dfs_2(output, found1 or output == 'dac', found2 or output == 'fft', inputs)
+
+  memo[state] = total
+  return total
+
 # Part 2 example
 devices_e = map_devices('11', '2_e')
-root = dfs('svr', devices_e)
-print('Possible path count', root.count_path_by_params(False, False) if root else 'Cound not find node')
+count = dfs_2('svr', False, False, devices_e)
+print('Possible path count', count)
 
 # Part 2
-root = dfs('svr', devices)
-print('Possible path count', root.count_path_by_params(False, False) if root else 'Cound not find node')
+total_count = dfs_2('svr', False, False, devices)
+print('Possible path count', count)
