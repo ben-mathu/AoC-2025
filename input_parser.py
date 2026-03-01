@@ -1,4 +1,4 @@
-def get_lines(day, test_type=''):
+def get_lines(day, test_type='') -> list:
     file_path = get_file_path(day, test_type)
     with open(file_path, 'r') as f:
         return [s.strip() for s in f.readlines()]
